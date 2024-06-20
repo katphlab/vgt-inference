@@ -47,7 +47,7 @@ class DefaultPredictor:
         checkpointer.load(model_weights_path)
 
         self.aug = aug.ResizeShortestEdge(
-            [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
+            cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MAX_SIZE_TEST
         )
 
         self.input_format = cfg.INPUT.FORMAT
