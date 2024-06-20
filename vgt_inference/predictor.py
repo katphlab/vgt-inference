@@ -8,6 +8,8 @@ from detectron2.structures import BoxMode
 from detectron2.structures.instances import Instances
 from numpy import ndarray
 
+from .ditod import aug
+
 
 class DefaultPredictor:
     """
@@ -44,7 +46,7 @@ class DefaultPredictor:
         checkpointer = DetectionCheckpointer(self.model)
         checkpointer.load(model_weights_path)
 
-        self.aug = T.ResizeShortestEdge(
+        self.aug = aug.ResizeShortestEdge(
             [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
         )
 
