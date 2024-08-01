@@ -7,7 +7,11 @@ from .predictor import DefaultPredictor
 
 class VGTPredictor:
     def __init__(
-        self, config_path: str, model_weights_path: str, device: str, hf_token: str
+        self,
+        config_path: str,
+        model_weights_path: str,
+        tokenizer_path: str,
+        device: str,
     ) -> None:
         cfg = get_cfg()
         # As detectron2 checks config from original config, we set the MIN_SIZE_TEST to tuple for custom aug
@@ -17,7 +21,5 @@ class VGTPredictor:
 
         cfg.MODEL.DEVICE = device
 
-        self.tokenizer = BrosTokenizer.from_pretrained(
-            "thewalnutaisg/bros-base-uncased", token=hf_token
-        )
+        self.tokenizer = BrosTokenizer.from_pretrained(tokenizer_path)
         self.predictor = DefaultPredictor(cfg, model_weights_path)
