@@ -8,6 +8,7 @@ from detectron2.modeling.meta_arch.rcnn import GeneralizedRCNN
 from detectron2.structures import Instances
 from detectron2.utils.events import get_event_storage
 
+from .imagelist import ImageList
 from .Wordnn_embedding import WordnnEmbedding
 
 __all__ = ["VGT"]
@@ -99,7 +100,9 @@ class VGT(GeneralizedRCNN):
             gt_instances = None
 
         chargrid = self.Wordgrid_embedding(images.tensor, batched_inputs)
-        features = self.backbone(images.tensor, chargrid)
+        features = self.backbone(
+            images.tensor, chargrid, attention_mask=images.padding_mask
+        )
 
         if self.proposal_generator is not None:
             proposals, proposal_losses = self.proposal_generator(
@@ -150,7 +153,9 @@ class VGT(GeneralizedRCNN):
         images = self.preprocess_image(batched_inputs)
 
         chargrid = self.Wordgrid_embedding(images.tensor, batched_inputs)
-        features = self.backbone(images.tensor, chargrid)
+        features = self.backbone(
+            images.tensor, chargrid, attention_mask=images.padding_mask
+        )
 
         if detected_instances is None:
             if self.proposal_generator is not None:
@@ -175,3 +180,18 @@ class VGT(GeneralizedRCNN):
             )
         else:
             return results
+
+    def preprocess_image(
+        self, batched_inputs: list[dict[str, torch.Tensor]]
+    ) -> ImageList:
+        """
+        Normalize, pad and batch the input images.
+        """
+        images = [self._move_to_current_device(x["image"]) for x in batched_inputs]
+        images = [(x - self.pixel_mean) / self.pixel_std for x in images]
+        images = ImageList.from_tensors(
+            images,
+            self.backbone.size_divisibility,
+            padding_constraints=self.backbone.padding_constraints,
+        )
+        return images
