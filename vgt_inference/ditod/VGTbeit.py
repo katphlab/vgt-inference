@@ -560,7 +560,7 @@ class Attention(nn.Module):
         if rel_pos_bias is not None:
             attn = attn + rel_pos_bias
         if attention_mask is not None:
-            attn = attn + attention_mask
+            attn = attn + attention_mask[:, None, None, :]
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
