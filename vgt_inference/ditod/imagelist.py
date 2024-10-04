@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import torch
 from detectron2.layers.wrappers import move_device_like, shapes_to_tensor
@@ -61,14 +61,14 @@ class ImageList:
 
     @staticmethod
     def from_tensors(
-        tensors: List[Tensor],
+        tensors: list[Tensor],
         size_divisibility: int = 0,
         pad_value: float = 0.0,
-        padding_constraints: Optional[Dict[str, int]] = None,
+        padding_constraints: dict[str, int] | None = None,
     ) -> "ImageList":
         """
         Args:
-            tensors: a tuple or list of `Tensor`, each of shape (Hi, Wi) or
+            tensors: a tuple or list of `torch.Tensor`, each of shape (Hi, Wi) or
                 (C_1, ..., C_K, Hi, Wi) where K >= 1. The Tensors will be padded
                 to the same shape with `pad_value`.
             size_divisibility (int): If `size_divisibility > 0`, add padding to ensure
@@ -159,7 +159,7 @@ def create_attention_mask(tensors, max_size, patch_size=16) -> Tensor:
         pooled_mask = (pooled_mask > 0).float()
         attention_mask_1d = pooled_mask.view(-1)
         attention_mask_1d = torch.cat(
-            [Tensor([1.0], device=img.device), attention_mask_1d]
+            [torch.tensor([1.0], device=img.device), attention_mask_1d]
         )
         large_neg_val = -1e8
         attention_mask_1d = (1 - attention_mask_1d) * large_neg_val
