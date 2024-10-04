@@ -152,7 +152,7 @@ class PTM_VIT_Backbone(Backbone):
             merge_type=merge_type,
         )
 
-    def forward(self, x, grid):
+    def forward(self, x, grid, attention_mask=None):
         """
         Args:
             x: Tensor of shape (N,C,H,W). H, W must be a multiple of ``self.size_divisibility``.
@@ -164,7 +164,9 @@ class PTM_VIT_Backbone(Backbone):
             x.dim() == 4
         ), f"VIT takes an input of shape (N, C, H, W). Got {x.shape} instead!"
 
-        vis_feat_out, grid_feat_out = self.backbone.forward_features(x, grid)
+        vis_feat_out, grid_feat_out = self.backbone.forward_features(
+            x, grid, attention_mask=attention_mask
+        )
         return self.FeatureMerge.forward(vis_feat_out, grid_feat_out)
 
     def output_shape(self):
@@ -178,7 +180,7 @@ class PTM_VIT_Backbone(Backbone):
 
 
 class GridFPN(FPN):
-    def forward(self, x, grid):
+    def forward(self, x, grid, attention_mask=None):
         """
         Args:
             input (dict[str->Tensor]): mapping feature map name (e.g., "res5") to
@@ -190,7 +192,7 @@ class GridFPN(FPN):
                 paper convention: "p<stage>", where stage has stride = 2 ** stage e.g.,
                 ["p2", "p3", ..., "p6"].
         """
-        bottom_up_features = self.bottom_up(x, grid)
+        bottom_up_features = self.bottom_up(x, grid, attention_mask=attention_mask)
         results = []
         prev_features = self.lateral_convs[0](bottom_up_features[self.in_features[-1]])
         results.append(self.output_convs[0](prev_features))

@@ -1,4 +1,4 @@
-""" Vision Transformer (ViT) in PyTorch
+"""Vision Transformer (ViT) in PyTorch
 
 A PyTorch implement of Vision Transformers as described in
 'An Image Is Worth 16 x 16 Words: Transformers for Image Recognition at Scale' - https://arxiv.org/abs/2010.11929
@@ -20,6 +20,7 @@ for some einops/einsum fun
 
 Hacked together by / Copyright 2020 Ross Wightman
 """
+
 import math
 from functools import partial
 
@@ -445,7 +446,9 @@ class Attention(nn.Module):
         self.proj = nn.Linear(all_head_dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x, rel_pos_bias=None, training_window_size=None):
+    def forward(
+        self, x, rel_pos_bias=None, training_window_size=None, attention_mask=None
+    ):
         B, N, _ = x.shape
         qkv_bias = None
         if self.q_bias is not None:
@@ -556,7 +559,8 @@ class Attention(nn.Module):
 
         if rel_pos_bias is not None:
             attn = attn + rel_pos_bias
-
+        if attention_mask is not None:
+            attn = attn + attention_mask
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
@@ -616,13 +620,16 @@ class Block(nn.Module):
         else:
             self.gamma_1, self.gamma_2 = None, None
 
-    def forward(self, x, rel_pos_bias=None, training_window_size=None):
+    def forward(
+        self, x, rel_pos_bias=None, training_window_size=None, attention_mask=None
+    ):
         if self.gamma_1 is None:
             x = x + self.drop_path(
                 self.attn(
                     self.norm1(x),
                     rel_pos_bias=rel_pos_bias,
                     training_window_size=training_window_size,
+                    attention_mask=attention_mask,
                 )
             )
             x = x + self.drop_path(self.mlp(self.norm2(x)))
@@ -633,6 +640,7 @@ class Block(nn.Module):
                     self.norm1(x),
                     rel_pos_bias=rel_pos_bias,
                     training_window_size=training_window_size,
+                    attention_mask=attention_mask,
                 )
             )
             x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
@@ -643,11 +651,9 @@ class PatchEmbed(nn.Module):
     """Image to Patch Embedding"""
 
     def __init__(
-        self, img_size=None, patch_size=16, in_chans=3, embed_dim=768, bias=True
+        self, img_size=[224, 224], patch_size=16, in_chans=3, embed_dim=768, bias=True
     ):
         super().__init__()
-        if img_size is None:
-            img_size = [224, 224]
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
         num_patches = (img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0])
@@ -664,7 +670,7 @@ class PatchEmbed(nn.Module):
         )
 
     def forward(self, x, position_embedding=None, **kwargs):
-        # Look at relaxing size constraints
+        # FIXME look at relaxing size constraints
         # assert H == self.img_size[0] and W == self.img_size[1], \
         #     f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
         x = self.proj(x)
@@ -692,21 +698,19 @@ class HybridEmbed(nn.Module):
     def __init__(
         self,
         backbone,
-        img_size=None,
+        img_size=[224, 224],
         feature_size=None,
         in_chans=3,
         embed_dim=768,
     ):
         super().__init__()
         assert isinstance(backbone, nn.Module)
-        if img_size is None:
-            img_size = [224, 224]
         img_size = to_2tuple(img_size)
         self.img_size = img_size
         self.backbone = backbone
         if feature_size is None:
             with torch.no_grad():
-                # This is hacky, but most reliable way of determining the exact dim of the output feature
+                # FIXME this is hacky, but most reliable way of determining the exact dim of the output feature
                 # map for all networks, the feature metadata has reliable channel and stride info, but using
                 # stride to calc feature dim requires info about padding of each stage that isn't captured.
                 training = backbone.training
@@ -885,9 +889,9 @@ class BEiT(nn.Module):
 
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.num_classes = num_classes
-        self.num_features = (
-            self.embed_dim
-        ) = embed_dim  # num_features for consistency with other models
+        self.num_features = self.embed_dim = (
+            embed_dim  # num_features for consistency with other models
+        )
         self.use_checkpoint = use_checkpoint
 
         if hybrid_backbone is not None:
@@ -1087,7 +1091,7 @@ class BEiT(nn.Module):
     def no_weight_decay(self):
         return {"pos_embed", "cls_token"}
 
-    def forward_features(self, x, grid):
+    def forward_features(self, x, grid, attention_mask=None):
         B, _, _, _ = x.shape
         vis_x, (Hp, Wp) = self.patch_embed(
             x, self.pos_embed[:, 1:, :] if self.pos_embed is not None else None
@@ -1129,13 +1133,14 @@ class BEiT(nn.Module):
         for i, blk in enumerate(self.blocks):
             if self.use_checkpoint:
                 vis_x = checkpoint.checkpoint(
-                    blk, vis_x, rel_pos_bias, training_window_size
+                    blk, vis_x, rel_pos_bias, training_window_size, attention_mask
                 )
             else:
                 vis_x = blk(
                     vis_x,
                     rel_pos_bias=rel_pos_bias,
                     training_window_size=training_window_size,
+                    attention_mask=attention_mask,
                 )
             if i in self.out_indices:
                 xp = vis_x[:, 1:, :].permute(0, 2, 1).reshape(B, -1, Hp, Wp)
@@ -1188,8 +1193,8 @@ class BEiT(nn.Module):
 
         return feat_out, grid_feat_out
 
-    def forward(self, x, grid):
-        x, y = self.forward_features(x, grid)
+    def forward(self, x, grid, attention_mask=None):
+        x, y = self.forward_features(x, grid, attention_mask)
         return x, y
 
 
