@@ -108,7 +108,7 @@ class ImageList:
 
         # handle weirdness of scripting and tracing ...
         if torch.jit.is_scripting():
-            max_size: List[int] = max_size.to(dtype=torch.long).tolist()
+            max_size: list[int] = max_size.to(dtype=torch.long).tolist()
         else:
             if torch.jit.is_tracing():
                 image_sizes = image_sizes_tensor
@@ -126,7 +126,7 @@ class ImageList:
             batched_imgs = F.pad(tensors[0], padding_size, value=pad_value).unsqueeze_(
                 0
             )
-            attention_masks = create_attention_mask(batched_imgs, max_size)
+            attention_masks = create_attention_mask(tensors, max_size)
         else:
             # max_size can be a tensor in tracing mode, therefore convert to list
             batch_shape = [len(tensors)] + list(tensors[0].shape[:-2]) + list(max_size)
@@ -142,11 +142,13 @@ class ImageList:
                 # Tracing mode cannot capture `copy_()` of temporary locals
                 batched_imgs[i, ..., : img.shape[-2], : img.shape[-1]].copy_(img)
             batched_imgs = batched_imgs.contiguous()
-            attention_masks = create_attention_mask(batched_imgs, max_size)
+            attention_masks = create_attention_mask(tensors, max_size)
         return ImageList(batched_imgs, attention_masks, image_sizes)
 
 
-def create_attention_mask(tensors, max_size, patch_size=16) -> Tensor:
+def create_attention_mask(
+    tensors: list[Tensor], max_size: list[int], patch_size: int = 16
+) -> Tensor:
     attention_masks = []
     for img in tensors:
         orig_size = img.shape[-2:]  # (H, W)
@@ -161,7 +163,7 @@ def create_attention_mask(tensors, max_size, patch_size=16) -> Tensor:
         attention_mask_1d = torch.cat(
             [torch.tensor([1.0], device=img.device), attention_mask_1d]
         )
-        large_neg_val = -1e8
+        large_neg_val = -1e6
         attention_mask_1d = (1 - attention_mask_1d) * large_neg_val
         attention_masks.append(attention_mask_1d)
     attention_mask = torch.stack(attention_masks, dim=0)
