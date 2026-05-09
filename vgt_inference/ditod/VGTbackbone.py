@@ -15,9 +15,8 @@
 import logging
 
 import torch.nn.functional as F
-from detectron2.layers import ShapeSpec
-from detectron2.modeling import BACKBONE_REGISTRY, FPN, Backbone
-from detectron2.modeling.backbone.fpn import LastLevelMaxPool
+from vgt_inference.modeling.backbone import BACKBONE_REGISTRY, Backbone, ShapeSpec
+from vgt_inference.modeling.fpn import FPN, LastLevelMaxPool
 
 from .FeatureMerge import FeatureMerge
 from .VGTbeit import (
@@ -206,8 +205,9 @@ class GridFPN(FPN):
             if idx > 0:
                 features = self.in_features[-idx - 1]
                 features = bottom_up_features[features]
+                _, _, h, w = features.shape
                 top_down_features = F.interpolate(
-                    prev_features, scale_factor=2.0, mode="nearest"
+                    prev_features, size=(h, w), mode="nearest"
                 )
                 lateral_features = lateral_conv(features)
                 prev_features = lateral_features + top_down_features

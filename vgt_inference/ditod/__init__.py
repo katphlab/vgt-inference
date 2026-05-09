@@ -8,8 +8,18 @@
 # --------------------------------------------------------------------------------
 
 from .config import add_vit_config
-from .dataset_mapper import DetrDatasetMapper
 from .utils import eval_and_show, load_gt_from_json, pub_load_gt_from_json
 from .VGT import VGT
 from .VGTbackbone import build_VGT_fpn_backbone
-from .VGTTrainer import VGTTrainer
+
+
+def get_detr_dataset_mapper():
+    from .dataset_mapper import DetrDatasetMapper
+
+    return DetrDatasetMapper
+
+
+def get_vgt_trainer():
+    from .VGTTrainer import VGTTrainer
+
+    return VGTTrainer

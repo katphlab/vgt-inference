@@ -2,11 +2,9 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 import torch
-from detectron2.config import configurable
-from detectron2.modeling.meta_arch.build import META_ARCH_REGISTRY
-from detectron2.modeling.meta_arch.rcnn import GeneralizedRCNN
-from detectron2.structures import Instances
-from detectron2.utils.events import get_event_storage
+
+from vgt_inference.core.structures import Instances
+from vgt_inference.modeling.meta_arch import GeneralizedRCNN
 
 from .imagelist import ImageList
 from .Wordnn_embedding import WordnnEmbedding
@@ -25,21 +23,33 @@ def torch_memory(device, tag="") -> None:
     print("")
 
 
-@META_ARCH_REGISTRY.register()
 class VGT(GeneralizedRCNN):
-    @configurable
     def __init__(
         self,
         *,
+        backbone,
+        proposal_generator,
+        roi_heads,
+        pixel_mean,
+        pixel_std,
+        input_format="BGR",
+        vis_period=0,
         vocab_size: int = 30552,
         hidden_size: int = 768,
         embedding_dim: int = 64,
         bros_embedding_path: str = "",
         use_pretrain_weight: bool = True,
         use_UNK_text: bool = False,
-        **kwargs,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(
+            backbone=backbone,
+            proposal_generator=proposal_generator,
+            roi_heads=roi_heads,
+            pixel_mean=pixel_mean,
+            pixel_std=pixel_std,
+            input_format=input_format,
+            vis_period=vis_period,
+        )
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
         self.Wordgrid_embedding = WordnnEmbedding(
@@ -50,21 +60,6 @@ class VGT(GeneralizedRCNN):
             use_pretrain_weight,
             use_UNK_text,
         )
-
-    @classmethod
-    def from_config(cls, cfg):
-        ret = super().from_config(cfg)
-        ret.update(
-            {
-                "vocab_size": cfg.MODEL.WORDGRID.VOCAB_SIZE,
-                "hidden_size": cfg.MODEL.WORDGRID.HIDDEN_SIZE,
-                "embedding_dim": cfg.MODEL.WORDGRID.EMBEDDING_DIM,
-                "bros_embedding_path": cfg.MODEL.WORDGRID.MODEL_PATH,
-                "use_pretrain_weight": cfg.MODEL.WORDGRID.USE_PRETRAIN_WEIGHT,
-                "use_UNK_text": cfg.MODEL.WORDGRID.USE_UNK_TEXT,
-            }
-        )
-        return ret
 
     def forward(self, batched_inputs: list[dict[str, torch.Tensor]]):
         """
@@ -114,11 +109,6 @@ class VGT(GeneralizedRCNN):
             proposal_losses = {}
 
         _, detector_losses = self.roi_heads(images, features, proposals, gt_instances)
-        if self.vis_period > 0:
-            storage = get_event_storage()
-            if storage.iter % self.vis_period == 0:
-                self.visualize_training(batched_inputs, proposals)
-
         losses = {}
         losses.update(detector_losses)
         losses.update(proposal_losses)
@@ -192,6 +182,5 @@ class VGT(GeneralizedRCNN):
         images = ImageList.from_tensors(
             images,
             self.backbone.size_divisibility,
-            padding_constraints=self.backbone.padding_constraints,
         )
         return images

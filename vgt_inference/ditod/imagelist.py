@@ -1,9 +1,16 @@
 from typing import Any
 
 import torch
-from detectron2.layers.wrappers import move_device_like, shapes_to_tensor
 from torch import Tensor, device
 from torch.nn import functional as F
+
+
+def shapes_to_tensor(shape: tuple[int, int]) -> Tensor:
+    return torch.as_tensor(shape, dtype=torch.long)
+
+
+def move_device_like(src: Tensor, dst: Tensor) -> Tensor:
+    return src.to(dst.device)
 
 
 class ImageList:
@@ -53,7 +60,8 @@ class ImageList:
     @torch.jit.unused
     def to(self, *args: Any, **kwargs: Any) -> "ImageList":
         cast_tensor = self.tensor.to(*args, **kwargs)
-        return ImageList(cast_tensor, self.padding_mask, self.image_sizes)
+        cast_padding_mask = self.padding_mask.to(*args, **kwargs)
+        return ImageList(cast_tensor, cast_padding_mask, self.image_sizes)
 
     @property
     def device(self) -> device:

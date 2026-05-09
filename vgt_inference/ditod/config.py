@@ -1,4 +1,4 @@
-from detectron2.config import CfgNode as CN
+from vgt_inference.core.config import CfgNode as CN
 
 
 def add_vit_config(cfg):
